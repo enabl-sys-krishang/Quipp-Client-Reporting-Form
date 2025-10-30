@@ -1,269 +1,449 @@
-import React, { useState } from 'react';
-import { Calendar, Send } from 'lucide-react';
-
-export default function QuippForm() {
-  // Replace this with your actual n8n webhook URL
-  const WEBHOOK_URL = "https://n8n.srv1084877.hstgr.cloud/webhook-test/dad3a93a-6802-49c3-b13b-3c2862e684fd";
-  
-  const [formData, setFormData] = useState({
-    brandName: '',
-    ga4PropertyId: '',
-    siteUrl: '',
-    startDate: '',
-    endDate: ''
-  });
-  
-  const [submissions, setSubmissions] = useState([]);
-  const [showSuccess, setShowSuccess] = useState(false);
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    const submission = {
-      "Brand Name": formData.brandName,
-      "GA4 Property ID": formData.ga4PropertyId,
-      "Search Console Site URL": formData.siteUrl,
-      "Start Date ": formData.startDate,
-      "End Date": formData.endDate,
-      "submittedAt": new Date().toISOString(),
-      "formMode": "production"
-    };
-    
-    try {
-      // Store in persistent storage
-      await window.storage.set(
-        `submission:${Date.now()}`,
-        JSON.stringify(submission),
-        false
-      );
-      
-      // Send to n8n webhook
-      if (WEBHOOK_URL && WEBHOOK_URL !== "YOUR_N8N_WEBHOOK_URL_HERE") {
-        const webhookResponse = await fetch(WEBHOOK_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(submission)
-        });
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quipp Analytics Form</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
         
-        if (!webhookResponse.ok) {
-          console.error('Webhook error:', await webhookResponse.text());
-        } else {
-          console.log('Successfully sent to n8n webhook');
+        body {
+            background-color: #000000;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            min-height: 100vh;
+            padding: 3rem 1rem;
         }
-      }
-      
-      setSubmissions(prev => [submission, ...prev]);
-      setShowSuccess(true);
-      
-      setFormData({
-        brandName: '',
-        ga4PropertyId: '',
-        siteUrl: '',
-        startDate: '',
-        endDate: ''
-      });
-      
-      setTimeout(() => setShowSuccess(false), 3000);
-      
-      console.log('Stored submission:', submission);
-    } catch (error) {
-      console.error('Storage error:', error);
-      alert('Error saving form data. Please try again.');
-    }
-  };
-
-  React.useEffect(() => {
-    const loadSubmissions = async () => {
-      try {
-        const keys = await window.storage.list('submission:');
-        if (keys && keys.keys) {
-          const loadedSubmissions = [];
-          for (const key of keys.keys) {
-            try {
-              const result = await window.storage.get(key);
-              if (result && result.value) {
-                loadedSubmissions.push(JSON.parse(result.value));
-              }
-            } catch (err) {
-              console.log('Key not found:', key);
+        
+        .container {
+            max-width: 42rem;
+            margin: 0 auto;
+        }
+        
+        .form-card {
+            background-color: #000000;
+            border: 1px solid #374151;
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        
+        .header {
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .logo-box {
+            display: inline-block;
+            background: linear-gradient(to bottom right, #b91c1c, #991b1b);
+            padding: 1rem 2rem;
+            border-radius: 1rem;
+        }
+        
+        .logo-text {
+            font-size: 3.75rem;
+            font-weight: 300;
+            color: white;
+            letter-spacing: 0.05em;
+        }
+        
+        .success-message {
+            margin: 1.5rem 2rem 0;
+            padding: 1rem;
+            background-color: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 0.5rem;
+            display: none;
+        }
+        
+        .success-message.show {
+            display: block;
+        }
+        
+        .success-text {
+            color: #166534;
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+        
+        .form-content {
+            padding: 2rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #d1d5db;
+            margin-bottom: 0.5rem;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background-color: #111827;
+            border: 1px solid #374151;
+            border-radius: 0.5rem;
+            color: white;
+            font-size: 1rem;
+            transition: all 0.2s;
+            outline: none;
+        }
+        
+        .form-input:focus {
+            border-color: transparent;
+            box-shadow: 0 0 0 2px #b91c1c;
+        }
+        
+        .form-input::placeholder {
+            color: #6b7280;
+        }
+        
+        .date-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+        
+        @media (min-width: 768px) {
+            .date-grid {
+                grid-template-columns: 1fr 1fr;
             }
-          }
-          setSubmissions(loadedSubmissions.sort((a, b) => 
-            new Date(b.submittedAt) - new Date(a.submittedAt)
-          ));
+            
+            .logo-text {
+                font-size: 3.75rem;
+            }
         }
-      } catch (error) {
-        console.log('No existing submissions found');
-      }
-    };
-    loadSubmissions();
-  }, []);
-
-  return (
-    <div className="min-h-screen bg-black py-12 px-4">
-      <div className="max-w-2xl mx-auto">
-        <div className="bg-black rounded-2xl shadow-xl overflow-hidden border border-gray-800">
-          {/* Header with Logo */}
-          <div className="p-8 text-center">
-            <div className="flex justify-center">
-              <div className="bg-gradient-to-br from-red-700 to-red-800 px-8 py-4 rounded-2xl">
-                <h1 className="text-6xl font-light text-white tracking-wide">quipp</h1>
-              </div>
-            </div>
-          </div>
-
-          {/* Success Message */}
-          {showSuccess && (
-            <div className="mx-8 mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-green-800 text-sm font-medium">
-                ✓ Form submitted successfully! Data has been stored and is ready for the n8n workflow.
-              </p>
-            </div>
-          )}
-
-          {/* Form */}
-          <div className="p-8 space-y-6">
-            {/* Brand Name */}
-            <div>
-              <label htmlFor="brandName" className="block text-sm font-medium text-gray-300 mb-2">
-                Brand Name
-              </label>
-              <input
-                type="text"
-                id="brandName"
-                name="brandName"
-                value={formData.brandName}
-                onChange={handleChange}
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-700 text-white rounded-lg focus:ring-2 focus:ring-red-700 focus:border-transparent outline-none transition-all"
-                placeholder="Enter brand name"
-              />
-            </div>
-
-            {/* GA4 Property ID */}
-            <div>
-              <label htmlFor="ga4PropertyId" className="block text-sm font-medium text-gray-300 mb-2">
-                GA4 Property ID
-              </label>
-              <input
-                type="number"
-                id="ga4PropertyId"
-                name="ga4PropertyId"
-                value={formData.ga4PropertyId}
-                onChange={handleChange}
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-700 text-white rounded-lg focus:ring-2 focus:ring-red-700 focus:border-transparent outline-none transition-all"
-                placeholder="Enter GA4 property ID"
-              />
-            </div>
-
-            {/* Site URL */}
-            <div>
-              <label htmlFor="siteUrl" className="block text-sm font-medium text-gray-300 mb-2">
-                Site URL
-              </label>
-              <input
-                type="url"
-                id="siteUrl"
-                name="siteUrl"
-                value={formData.siteUrl}
-                onChange={handleChange}
-                className="w-full px-4 py-3 bg-gray-900 border border-gray-700 text-white rounded-lg focus:ring-2 focus:ring-red-700 focus:border-transparent outline-none transition-all"
-                placeholder="https://example.com"
-              />
-            </div>
-
-            {/* Date Range */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="startDate" className="block text-sm font-medium text-gray-300 mb-2">
-                  <Calendar className="inline w-4 h-4 mr-1" />
-                  Start Date
-                </label>
-                <input
-                  type="date"
-                  id="startDate"
-                  name="startDate"
-                  value={formData.startDate}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-700 text-white rounded-lg focus:ring-2 focus:ring-red-700 focus:border-transparent outline-none transition-all"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="endDate" className="block text-sm font-medium text-gray-300 mb-2">
-                  <Calendar className="inline w-4 h-4 mr-1" />
-                  End Date
-                </label>
-                <input
-                  type="date"
-                  id="endDate"
-                  name="endDate"
-                  value={formData.endDate}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 bg-gray-900 border border-gray-700 text-white rounded-lg focus:ring-2 focus:ring-red-700 focus:border-transparent outline-none transition-all"
-                />
-              </div>
+        
+        .submit-btn {
+            width: 100%;
+            background: linear-gradient(to right, #b91c1c, #991b1b);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            font-size: 1rem;
+        }
+        
+        .submit-btn:hover {
+            background: linear-gradient(to right, #991b1b, #7f1d1d);
+        }
+        
+        .submit-btn:focus {
+            box-shadow: 0 0 0 4px rgba(185, 28, 28, 0.3);
+        }
+        
+        .submissions-card {
+            margin-top: 2rem;
+            background-color: #000000;
+            border: 1px solid #374151;
+            border-radius: 1rem;
+            padding: 2rem;
+            display: none;
+        }
+        
+        .submissions-card.show {
+            display: block;
+        }
+        
+        .submissions-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: white;
+            margin-bottom: 1rem;
+        }
+        
+        .submissions-list {
+            max-height: 24rem;
+            overflow-y: auto;
+        }
+        
+        .submission-item {
+            padding: 1rem;
+            background-color: #111827;
+            border: 1px solid #374151;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .submission-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+        
+        .submission-field {
+            grid-column: span 1;
+        }
+        
+        .submission-field.full {
+            grid-column: span 2;
+        }
+        
+        .field-label {
+            font-weight: 500;
+            color: #d1d5db;
+        }
+        
+        .field-value {
+            color: #9ca3af;
+            margin-left: 0.5rem;
+            word-break: break-all;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="form-card">
+            <!-- Header with Logo -->
+            <div class="header">
+                <div class="logo-box">
+                    <h1 class="logo-text">quipp</h1>
+                </div>
             </div>
 
-            {/* Submit Button */}
-            <button
-              onClick={handleSubmit}
-              className="w-full bg-gradient-to-r from-red-700 to-red-800 text-white py-3 px-6 rounded-lg font-medium hover:from-red-800 hover:to-red-900 focus:ring-4 focus:ring-red-300 transition-all shadow-lg flex items-center justify-center gap-2"
-            >
-              <Send className="w-5 h-5" />
-              Submit Request
-            </button>
-          </div>
+            <!-- Success Message -->
+            <div id="successMessage" class="success-message">
+                <p class="success-text">
+                    ✓ Form submitted successfully! Data has been stored and sent to workflow.
+                </p>
+            </div>
+
+            <!-- Form -->
+            <div class="form-content">
+                <!-- Brand Name -->
+                <div class="form-group">
+                    <label for="brandName" class="form-label">
+                        Brand Name
+                    </label>
+                    <input
+                        type="text"
+                        id="brandName"
+                        name="brandName"
+                        required
+                        class="form-input"
+                        placeholder="Enter brand name"
+                    />
+                </div>
+
+                <!-- GA4 Property ID -->
+                <div class="form-group">
+                    <label for="ga4PropertyId" class="form-label">
+                        GA4 Property ID
+                    </label>
+                    <input
+                        type="number"
+                        id="ga4PropertyId"
+                        name="ga4PropertyId"
+                        required
+                        class="form-input"
+                        placeholder="Enter GA4 property ID"
+                    />
+                </div>
+
+                <!-- Site URL -->
+                <div class="form-group">
+                    <label for="siteUrl" class="form-label">
+                        Site URL
+                    </label>
+                    <input
+                        type="url"
+                        id="siteUrl"
+                        name="siteUrl"
+                        required
+                        class="form-input"
+                        placeholder="https://example.com"
+                    />
+                </div>
+
+                <!-- Date Range -->
+                <div class="date-grid">
+                    <div class="form-group">
+                        <label for="startDate" class="form-label">
+                            📅 Start Date
+                        </label>
+                        <input
+                            type="date"
+                            id="startDate"
+                            name="startDate"
+                            required
+                            class="form-input"
+                        />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="endDate" class="form-label">
+                            📅 End Date
+                        </label>
+                        <input
+                            type="date"
+                            id="endDate"
+                            name="endDate"
+                            required
+                            class="form-input"
+                        />
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <button
+                    id="submitBtn"
+                    type="button"
+                    class="submit-btn"
+                >
+                    <span>📤</span>
+                    Submit Request
+                </button>
+            </div>
         </div>
 
-        {/* Submissions Display */}
-        {submissions.length > 0 && (
-          <div className="mt-8 bg-black rounded-2xl shadow-xl p-8 border border-gray-800">
-            <h2 className="text-xl font-semibold text-white mb-4">
-              Recent Submissions
+        <!-- Submissions Display -->
+        <div id="submissionsContainer" class="submissions-card">
+            <h2 class="submissions-title">
+                Recent Submissions
             </h2>
-            <div className="space-y-4 max-h-96 overflow-y-auto">
-              {submissions.map((sub, idx) => (
-                <div key={idx} className="p-4 bg-gray-900 rounded-lg border border-gray-800">
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <span className="font-medium text-gray-300">Brand:</span>
-                      <span className="ml-2 text-gray-400">{sub["Brand Name"]}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-300">GA4 ID:</span>
-                      <span className="ml-2 text-gray-400">{sub["GA4 Property ID"]}</span>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="font-medium text-gray-300">URL:</span>
-                      <span className="ml-2 text-gray-400 break-all">{sub["Search Console Site URL"]}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-300">Period:</span>
-                      <span className="ml-2 text-gray-400">{sub["Start Date "]} to {sub["End Date"]}</span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-300">Submitted:</span>
-                      <span className="ml-2 text-gray-400">
-                        {new Date(sub.submittedAt).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div id="submissionsList" class="submissions-list">
             </div>
-          </div>
-        )}
-      </div>
+        </div>
     </div>
-  );
-}
+
+    <script>
+        // ⚠️ REPLACE THIS WITH YOUR N8N WEBHOOK URL
+        const WEBHOOK_URL = "YOUR_N8N_WEBHOOK_URL_HERE";
+
+        // Load submissions on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            loadSubmissions();
+        });
+
+        // Handle form submission
+        document.getElementById('submitBtn').addEventListener('click', async () => {
+            const brandName = document.getElementById('brandName').value;
+            const ga4PropertyId = document.getElementById('ga4PropertyId').value;
+            const siteUrl = document.getElementById('siteUrl').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            // Validate inputs
+            if (!brandName || !ga4PropertyId || !siteUrl || !startDate || !endDate) {
+                alert('Please fill in all fields');
+                return;
+            }
+
+            const submission = {
+                "Brand Name": brandName,
+                "GA4 Property ID": ga4PropertyId,
+                "Search Console Site URL": siteUrl,
+                "Start Date ": startDate,
+                "End Date": endDate,
+                "submittedAt": new Date().toISOString(),
+                "formMode": "production"
+            };
+
+            try {
+                // Store in localStorage
+                const existingSubmissions = JSON.parse(localStorage.getItem('submissions') || '[]');
+                existingSubmissions.unshift(submission);
+                localStorage.setItem('submissions', JSON.stringify(existingSubmissions));
+
+                // Send to n8n webhook
+                if (WEBHOOK_URL && WEBHOOK_URL !== "https://n8n.srv1084877.hstgr.cloud/webhook-test/dad3a93a-6802-49c3-b13b-3c2862e684fd") {
+                    const webhookResponse = await fetch(WEBHOOK_URL, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(submission)
+                    });
+
+                    if (!webhookResponse.ok) {
+                        console.error('Webhook error:', await webhookResponse.text());
+                    } else {
+                        console.log('Successfully sent to n8n webhook');
+                    }
+                }
+
+                // Show success message
+                const successMsg = document.getElementById('successMessage');
+                successMsg.classList.add('show');
+                setTimeout(() => {
+                    successMsg.classList.remove('show');
+                }, 3000);
+
+                // Clear form
+                document.getElementById('brandName').value = '';
+                document.getElementById('ga4PropertyId').value = '';
+                document.getElementById('siteUrl').value = '';
+                document.getElementById('startDate').value = '';
+                document.getElementById('endDate').value = '';
+
+                // Reload submissions
+                loadSubmissions();
+
+                console.log('Stored submission:', submission);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error saving form data. Please try again.');
+            }
+        });
+
+        function loadSubmissions() {
+            try {
+                const stored = JSON.parse(localStorage.getItem('submissions') || '[]');
+                const container = document.getElementById('submissionsContainer');
+                const list = document.getElementById('submissionsList');
+
+                if (stored.length > 0) {
+                    container.classList.add('show');
+                    list.innerHTML = stored.map(sub => `
+                        <div class="submission-item">
+                            <div class="submission-grid">
+                                <div class="submission-field">
+                                    <span class="field-label">Brand:</span>
+                                    <span class="field-value">${sub["Brand Name"]}</span>
+                                </div>
+                                <div class="submission-field">
+                                    <span class="field-label">GA4 ID:</span>
+                                    <span class="field-value">${sub["GA4 Property ID"]}</span>
+                                </div>
+                                <div class="submission-field full">
+                                    <span class="field-label">URL:</span>
+                                    <span class="field-value">${sub["Search Console Site URL"]}</span>
+                                </div>
+                                <div class="submission-field">
+                                    <span class="field-label">Period:</span>
+                                    <span class="field-value">${sub["Start Date "]} to ${sub["End Date"]}</span>
+                                </div>
+                                <div class="submission-field">
+                                    <span class="field-label">Submitted:</span>
+                                    <span class="field-value">
+                                        ${new Date(sub.submittedAt).toLocaleString()}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.log('No existing submissions found');
+            }
+        }
+    </script>
+</body>
+</html>
